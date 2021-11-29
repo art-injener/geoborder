@@ -51,7 +51,20 @@ linters-settings:
   nolintlint:
     require-explanation: true
     require-specific: true
-
+  wsl:
+    # See https://github.com/bombsimon/wsl/blob/master/doc/configuration.md for
+    # documentation of available settings. These are the defaults for
+    # `golangci-lint`.
+    allow-assign-and-anything: false
+    allow-assign-and-call: true
+    allow-cuddle-declarations: false
+    allow-multiline-assign: true
+    allow-separated-leading-comment: false
+    allow-trailing-comment: false
+    force-case-trailing-whitespace: 0
+    force-err-cuddling: false
+    force-short-decl-cuddling: false
+    strict-append: true
 linters:
   disable-all: true
   enable:
@@ -114,7 +127,8 @@ linters:
     - wsl
     - whitespace
 
-# disable:
+#  disable:
+#    - wsl
 #    - exhaustivestruct
 #    - ifshort
 #    - goheader
@@ -135,4 +149,3 @@ issues:
 run:
   skip-dirs:
     - docs
-

@@ -15,8 +15,8 @@ type Connector interface {
 // GeoStorage - интерфейс для работы с БД , где хранятся геоданные.
 type GeoStorage interface {
 	Connector
-	GetAllGeozones() ([]models.Geofences, error)
-	GetFullGeometry() (map[uint64]*models.GeozoneExt, error)
+	GetAllGeozones() ([]models.Geofence, error)
+	GetFullGeometry() (map[uint64]*models.GeofenceExt, error)
 }
 
 // DevStorage - интерфейс для работы с БД.
@@ -28,5 +28,7 @@ type DevStorage interface {
 type MemoryGeoCache interface {
 	Load() (count int, err error)
 	Update() (count int, err error)
-	FindGeoZoneByPont(point orb.Point) models.Geofences
+	FindGeofenceByPoint(point orb.Point,userID *uint64, withDistance bool) ([]models.Geofence, error)
+	CheckGeofenceByPoint(point orb.Point,geofenceId []uint64) ([]models.Geofence, error)
+	GetDistanceToGeofence(point orb.Point) ([]models.Geofence, error)
 }

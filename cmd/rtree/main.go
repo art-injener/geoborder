@@ -2,14 +2,18 @@ package main
 
 import (
 	"fmt"
+	"github.com/X-Keeper/geoborder/internal/geofence"
+	"google.golang.org/grpc"
+	"log"
+	"net"
 	"os"
 
-	"github.com/paulmach/orb"
 	"github.com/pkg/errors"
 
 	"github.com/X-Keeper/geoborder/internal/config"
 	"github.com/X-Keeper/geoborder/internal/storage/geocache"
 	"github.com/X-Keeper/geoborder/internal/storage/postgres"
+	gf "github.com/X-Keeper/geoborder/pkg/api/proto"
 	"github.com/X-Keeper/geoborder/pkg/logger"
 )
 
@@ -39,22 +43,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	devDB := postgres.NewDevStorage(cfg)
-
-	connect, err = devDB.Connect(
-		&config.DBConfig{
-			Host:     cfg.DBDevicesConfig.Host,
-			Port:     cfg.DBDevicesConfig.Port,
-			NameDB:   cfg.DBDevicesConfig.NameDB,
-			User:     cfg.DBDevicesConfig.User,
-			Password: cfg.DBDevicesConfig.Password,
-		})
-
-	if err != nil || !connect {
-		logger.LogError(errors.Wrap(err, "[MAIN] : error connect to devicesDb"), cfg.Log)
-		os.Exit(1)
-	}
-
 	memoryGeoCache, err := geocache.NewMemoryCache(geoDB)
 
 	if err != nil {
@@ -66,10 +54,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	geozones, err := memoryGeoCache.FindGeoZoneByPont(orb.Point{39.70151, 47.23571})
+	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		return
+		log.Fatalln(err)
 	}
 
-	logger.LogDebug(fmt.Sprintf("find geozones (%d) :\n %v", len(geozones), geozones), cfg.Log)
+	server := grpc.NewServer()
+
+	geoborderServer := geofence.NewGeoborderServer(memoryGeoCache)
+
+	gf.RegisterGeofenceServiceServer(server, geoborderServer)
+
+	log.Fatalln(server.Serve(listener))
 }
+
+

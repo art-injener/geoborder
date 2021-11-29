@@ -1,28 +1,30 @@
 package models
 
 import (
+	"fmt"
 	"github.com/dhconnelly/rtreego"
 	"github.com/paulmach/orb/geojson"
 )
 
-type Geofences struct {
-	PoligonID   uint64 `json:"poligonId"`
+type Geofence struct {
+	PolygonID   uint64 `json:"polygonId"`
 	GeofenceID  uint64 `json:"geofenceId"`
 	UserID      uint64 `json:"userId"`
 	Title       string `json:"title"`
+	Distance    float64
 	BoundingBox *rtreego.Rect
 }
 
-func (t Geofences) Bounds() *rtreego.Rect {
+func (t Geofence) Bounds() *rtreego.Rect {
 	return t.BoundingBox
 }
 
-func (t Geofences) String() string {
-	return t.Title
+func (t Geofence) String() string {
+	return fmt.Sprintf(" Geofence : %s, distanse = %f ", t.Title, t.Distance)
 }
 
-type GeozoneExt struct {
-	ID                  uint64            `json:"poligonId"`
+type GeofenceExt struct {
+	PolygonID           uint64            `json:"polygonId"`
 	GeofenceID          uint64            `json:"geofenceId"`
 	Title               string            `json:"title"`
 	UserID              uint64            `json:"userId"`

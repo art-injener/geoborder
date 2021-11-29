@@ -29,7 +29,7 @@ func NewGeoStorage(cfg *config.Config) *GeoStorage {
 	}
 }
 
-func (s *GeoStorage) GetAllGeozones() ([]models.Geofences, error) {
+func (s *GeoStorage) GetAllGeozones() ([]models.Geofence, error) {
 	rows, err := s.db.Query(context.Background(),
 		"SELECT json_build_object("+
 			"'id',       g.id, "+
@@ -48,10 +48,10 @@ func (s *GeoStorage) GetAllGeozones() ([]models.Geofences, error) {
 		return nil, nil
 	}
 
-	var geozones []models.Geofences
+	var geozones []models.Geofence
 
 	for rows.Next() {
-		var g models.Geofences
+		var g models.Geofence
 		err := rows.Scan(&g)
 
 		if err != nil {
@@ -71,10 +71,10 @@ func (s *GeoStorage) GetAllGeozones() ([]models.Geofences, error) {
 }
 
 // GetFullGeometry - загружаем всю информацию об геозонах.
-func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeozoneExt, error) {
+func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeofenceExt, error) {
 	rows, err := s.db.Query(context.Background(),
 		"SELECT json_build_object(  "+
-			"'poligonId',  gp.id,"+
+			"'polygonId',  gp.id,"+
 			"'geofenceId', g.id,"+
 			"'title',      g.title,"+
 			"'userId',     g.user_id, "+
@@ -93,10 +93,10 @@ func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeozoneExt, error) {
 		return nil, nil
 	}
 
-	var geozones = make(map[uint64]*models.GeozoneExt)
+	var geozones = make(map[uint64]*models.GeofenceExt)
 
 	for rows.Next() {
-		var g models.GeozoneExt
+		var g models.GeofenceExt
 		err := rows.Scan(&g)
 
 		if err != nil {
@@ -129,7 +129,7 @@ func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeozoneExt, error) {
 		}
 
 		g.GeometryFull = nil
-		geozones[g.ID] = &g
+		geozones[g.PolygonID] = &g
 	}
 
 	if err := rows.Err(); err != nil {
