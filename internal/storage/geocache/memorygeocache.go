@@ -32,7 +32,7 @@ type MemoryGeoCache struct {
 	log *logger.Logger
 }
 
-func NewMemoryCache(db storage.GeoStorage) (*MemoryGeoCache, error) {
+func NewMemoryCache(db storage.GeoStorage,log *logger.Logger) (*MemoryGeoCache, error) {
 	if db == nil {
 		return nil, errors.New("no database connection")
 	}
@@ -42,6 +42,7 @@ func NewMemoryCache(db storage.GeoStorage) (*MemoryGeoCache, error) {
 		geofenceExtCache:        make(map[uint64]*models.GeofenceExt),
 		geofenceLinkedToPolygon: make(map[uint64][]uint64),
 		rtree:                   rtreego.NewTree(2, 25, 4096),
+		log: log,
 	}, nil
 }
 

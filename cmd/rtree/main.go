@@ -43,7 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	memoryGeoCache, err := geocache.NewMemoryCache(geoDB)
+	memoryGeoCache, err := geocache.NewMemoryCache(geoDB,cfg.Log)
 
 	if err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error create geocache"), cfg.Log)
