@@ -46,14 +46,15 @@ func NewMemoryCache(db storage.GeoStorage) (*MemoryGeoCache, error) {
 }
 
 func (m *MemoryGeoCache) Load() (count int, err error) {
-	m.RLock()
-	defer m.RUnlock()
 
 	if m.geofenceExtCache, err = m.db.GetFullGeometry(); err != nil {
 		logger.LogError(err, m.log)
 
 		return 0, errors.Wrap(err, "error load full geometry")
 	}
+
+	m.RLock()
+	defer m.RUnlock()
 
 	for _, geofences := range m.geofenceExtCache {
 		m.rtree.Insert(&models.Geofence{
@@ -74,13 +75,37 @@ func (m *MemoryGeoCache) Load() (count int, err error) {
 	return m.rtree.Size(), nil
 }
 
+// Update - самый простой вариант обновления кэша.
+// Переделать на уведомления от postgres - https://habr.com/ru/company/tensor/blog/484978/
 func (m *MemoryGeoCache) Update() (count int, err error) {
+
+	var res map[uint64]*models.GeofenceExt
+	ids := make([]uint64, 0, len(m.geofenceLinkedToPolygon))
+	for _, v := range m.geofenceLinkedToPolygon {
+		ids = append(ids, v...)
+	}
+
+	if res, err = m.db.GetNewRecords(ids); err != nil {
+		logger.LogError(err, m.log)
+
+		return 0, errors.Wrap(err, "error load full geometry")
+	}
+
+	if len(res) == 0 {
+		return 0, nil
+	}
 	m.Lock()
 	defer m.Unlock()
+	for k, ext := range res {
+		m.geofenceExtCache[k] = ext
 
-	// придумать как обновлять данные в кэше
+		polygons := m.geofenceLinkedToPolygon[ext.GeofenceID]
+		polygons = append(polygons, ext.PolygonID)
+		m.geofenceLinkedToPolygon[ext.GeofenceID] = polygons
+	}
+	logger.LogDebug(fmt.Sprintf("[MEMORY_GEO_CACHE]::Update : add %d new records", len(res)), m.log)
 
-	return 0, nil
+	return len(res), nil
 }
 
 // FindGeofenceByPoint - поиск вхождения точки в геозону
@@ -105,11 +130,11 @@ func (m *MemoryGeoCache) FindGeofenceByPoint(point orb.Point, userID *uint64, wi
 		}
 
 		// делаем поиск расширенного описания геозоны по id полигона, который её описывает
-		if gzExt, ok = m.geofenceExtCache[gz.PolygonID]; !ok  {
+		if gzExt, ok = m.geofenceExtCache[gz.PolygonID]; !ok {
 			continue
 		}
 
-		if userID != nil &&  *userID != gzExt.UserID  {
+		if userID != nil && *userID != gzExt.UserID {
 			continue
 		}
 
@@ -160,8 +185,8 @@ func (m *MemoryGeoCache) CheckGeofenceByPoint(point orb.Point, geofenceId []uint
 	return geofences, nil
 }
 
-func (m *MemoryGeoCache) GetDistanceToGeofence(point orb.Point) ([]models.Geofence, error){
-	return m.FindGeofenceByPoint(point,nil,true)
+func (m *MemoryGeoCache) GetDistanceToGeofence(point orb.Point) ([]models.Geofence, error) {
+	return m.FindGeofenceByPoint(point, nil, true)
 }
 
 func (m *MemoryGeoCache) PolygonContainsGeo(polygon orb.Polygon, point orb.Point) bool {

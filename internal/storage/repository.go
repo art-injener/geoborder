@@ -17,6 +17,7 @@ type GeoStorage interface {
 	Connector
 	GetAllGeozones() ([]models.Geofence, error)
 	GetFullGeometry() (map[uint64]*models.GeofenceExt, error)
+	GetNewRecords(ids []uint64)  (map[uint64]*models.GeofenceExt, error)
 }
 
 // DevStorage - интерфейс для работы с БД.

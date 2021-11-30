@@ -79,10 +79,6 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	if err := viper.UnmarshalKey("GRPC_HOST", &cfg.GRPCConfig.Host); err != nil {
-		return nil, err
-	}
-
 	if err := viper.UnmarshalKey("GRPS_PORT", &cfg.GRPCConfig.Port); err != nil {
 		return nil, err
 	}

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/X-Keeper/geoborder/internal/geofence"
 	"google.golang.org/grpc"
-	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -50,14 +50,30 @@ func main() {
 		os.Exit(1)
 	}
 	if _, err := memoryGeoCache.Load(); err != nil {
-		logger.LogError(errors.Wrap(err, "[MAIN] : error create geocache"), cfg.Log)
+		logger.LogError(errors.Wrap(err, "[MAIN] : error load geocache"), cfg.Log)
 		os.Exit(1)
 	}
 
-	listener, err := net.Listen("tcp", ":50051")
+	ticker := time.NewTicker(5 * time.Second)
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				memoryGeoCache.Update()
+			}
+		}
+	}()
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d",cfg.GRPCConfig.Port))
 	if err != nil {
-		log.Fatalln(err)
+		logger.LogError(errors.Wrap(err, "[MAIN] : error listen tcp"), cfg.Log)
+		os.Exit(1)
 	}
+
+	logger.LogDebug(fmt.Sprintf("[MAIN]::Start listen  %s",listener.Addr()),cfg.Log)
 
 	server := grpc.NewServer()
 
@@ -65,7 +81,12 @@ func main() {
 
 	gf.RegisterGeofenceServiceServer(server, geoborderServer)
 
-	log.Fatalln(server.Serve(listener))
+	if err := server.Serve(listener); err != nil {
+		logger.LogError(errors.Wrap(err, "[MAIN] : error start server"), cfg.Log)
+		os.Exit(1)
+	}
+	ticker.Stop()
+	done <- true
 }
 
 

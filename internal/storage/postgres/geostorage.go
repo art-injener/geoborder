@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-
 	"github.com/dhconnelly/rtreego"
 	"github.com/jackc/pgx/v4"
 	"github.com/paulmach/orb"
@@ -93,7 +92,11 @@ func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeofenceExt, error) {
 		return nil, nil
 	}
 
-	var geozones = make(map[uint64]*models.GeofenceExt)
+	return s.parseData(rows), nil
+}
+
+func (s *GeoStorage) parseData(rows pgx.Rows) map[uint64]*models.GeofenceExt {
+	var geofence = make(map[uint64]*models.GeofenceExt)
 
 	for rows.Next() {
 		var g models.GeofenceExt
@@ -129,12 +132,38 @@ func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeofenceExt, error) {
 		}
 
 		g.GeometryFull = nil
-		geozones[g.PolygonID] = &g
+		geofence[g.PolygonID] = &g
 	}
 
 	if err := rows.Err(); err != nil {
 		logger.LogError(err, s.log)
 	}
+	return geofence
+}
 
-	return geozones, nil
+func (s *GeoStorage) GetNewRecords(ids []uint64)  (map[uint64]*models.GeofenceExt, error) {
+	rows, err := s.db.Query(context.Background(),
+		"SELECT json_build_object(  "+
+			"'polygonId',  gp.id,"+
+			"'geofenceId', g.id,"+
+			"'title',      g.title,"+
+			"'userId',     g.user_id, "+
+			"'geometryFull',   ST_AsGeoJSON(polygon::geometry)::json,"+
+			"'geometrySimplify', ST_Simplify(polygon::geometry,0.1,true)::json,"+
+			"'geometryBoundingBox',  ST_AsBinary(ST_Extent(polygon::geometry))) "+
+			"FROM geo.gz_polygon gp INNER JOIN  geo.geozone g ON gp.gz_id = g.id GROUP BY gp.id,g.id HAVING NOT (gp.id =ANY($1));", ids)
+
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return nil, errors.Wrap(err, "QueryRow failed")
+	}
+
+	defer rows.Close()
+
+
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+
+
+	return s.parseData(rows), nil
 }
