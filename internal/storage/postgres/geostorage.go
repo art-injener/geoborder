@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+
 	"github.com/dhconnelly/rtreego"
 	"github.com/jackc/pgx/v4"
 	"github.com/paulmach/orb"
@@ -52,7 +53,6 @@ func (s *GeoStorage) GetAllGeozones() ([]models.Geofence, error) {
 	for rows.Next() {
 		var g models.Geofence
 		err := rows.Scan(&g)
-
 		if err != nil {
 			logger.LogError(err, s.log)
 
@@ -88,7 +88,7 @@ func (s *GeoStorage) GetFullGeometry() (map[uint64]*models.GeofenceExt, error) {
 
 	defer rows.Close()
 
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 
@@ -100,8 +100,8 @@ func (s *GeoStorage) parseData(rows pgx.Rows) map[uint64]*models.GeofenceExt {
 
 	for rows.Next() {
 		var g models.GeofenceExt
-		err := rows.Scan(&g)
 
+		err := rows.Scan(&g)
 		if err != nil {
 			logger.LogError(err, s.log)
 
@@ -138,10 +138,11 @@ func (s *GeoStorage) parseData(rows pgx.Rows) map[uint64]*models.GeofenceExt {
 	if err := rows.Err(); err != nil {
 		logger.LogError(err, s.log)
 	}
+
 	return geofence
 }
 
-func (s *GeoStorage) GetNewRecords(ids []uint64)  (map[uint64]*models.GeofenceExt, error) {
+func (s *GeoStorage) GetNewRecords(ids []uint64) (map[uint64]*models.GeofenceExt, error) {
 	rows, err := s.db.Query(context.Background(),
 		"SELECT json_build_object(  "+
 			"'polygonId',  gp.id,"+
@@ -151,7 +152,9 @@ func (s *GeoStorage) GetNewRecords(ids []uint64)  (map[uint64]*models.GeofenceEx
 			"'geometryFull',   ST_AsGeoJSON(polygon::geometry)::json,"+
 			"'geometrySimplify', ST_Simplify(polygon::geometry,0.1,true)::json,"+
 			"'geometryBoundingBox',  ST_AsBinary(ST_Extent(polygon::geometry))) "+
-			"FROM geo.gz_polygon gp INNER JOIN  geo.geozone g ON gp.gz_id = g.id GROUP BY gp.id,g.id HAVING NOT (gp.id =ANY($1));", ids)
+			"FROM geo.gz_polygon gp "+
+			"INNER JOIN  geo.geozone g ON gp.gz_id = g.id "+
+			"GROUP BY gp.id,g.id HAVING NOT (gp.id =ANY($1));", ids)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return nil, errors.Wrap(err, "QueryRow failed")
@@ -159,11 +162,9 @@ func (s *GeoStorage) GetNewRecords(ids []uint64)  (map[uint64]*models.GeofenceEx
 
 	defer rows.Close()
 
-
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-
 
 	return s.parseData(rows), nil
 }

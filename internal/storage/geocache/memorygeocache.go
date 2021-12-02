@@ -32,22 +32,25 @@ type MemoryGeoCache struct {
 	log *logger.Logger
 }
 
-func NewMemoryCache(db storage.GeoStorage,log *logger.Logger) (*MemoryGeoCache, error) {
+func NewMemoryCache(db storage.GeoStorage, log *logger.Logger) (*MemoryGeoCache, error) {
 	if db == nil {
 		return nil, errors.New("no database connection")
 	}
+
+	dimensions := 2
+	minChildren := 25
+	maxChildren := 4096
 
 	return &MemoryGeoCache{
 		db:                      db,
 		geofenceExtCache:        make(map[uint64]*models.GeofenceExt),
 		geofenceLinkedToPolygon: make(map[uint64][]uint64),
-		rtree:                   rtreego.NewTree(2, 25, 4096),
-		log: log,
+		rtree:                   rtreego.NewTree(dimensions, minChildren, maxChildren),
+		log:                     log,
 	}, nil
 }
 
 func (m *MemoryGeoCache) Load() (count int, err error) {
-
 	if m.geofenceExtCache, err = m.db.GetFullGeometry(); err != nil {
 		logger.LogError(err, m.log)
 
@@ -79,7 +82,6 @@ func (m *MemoryGeoCache) Load() (count int, err error) {
 // Update - самый простой вариант обновления кэша.
 // Переделать на уведомления от postgres - https://habr.com/ru/company/tensor/blog/484978/
 func (m *MemoryGeoCache) Update() (count int, err error) {
-
 	var res map[uint64]*models.GeofenceExt
 	ids := make([]uint64, 0, len(m.geofenceLinkedToPolygon))
 	for _, v := range m.geofenceLinkedToPolygon {
@@ -112,11 +114,12 @@ func (m *MemoryGeoCache) Update() (count int, err error) {
 // FindGeofenceByPoint - поиск вхождения точки в геозону
 // поиск разбит на 2 этапа:
 // 1 этап - ищем в rtree пересечение точки с описывающим геозону прямоугольником
-// 2 этап - проверяем по списку полученных прямоугольников вхождение точки в упрощенный полигон геозоны
+// 2 этап - проверяем по списку полученных прямоугольников вхождение точки в упрощенный полигон геозоны.
 func (m *MemoryGeoCache) FindGeofenceByPoint(point orb.Point, userID *uint64, withDistance bool) ([]models.Geofence, error) {
 	rpt := rtreego.Point{point.X(), point.Y()}
 	// выполняем поиск пересечения точки с описывающим геозону прямоугольником
-	intersects := m.rtree.SearchIntersect(rpt.ToRect(0.001 / 2.))
+	epsilon := 0.0005
+	intersects := m.rtree.SearchIntersect(rpt.ToRect(epsilon))
 
 	geofences := make([]models.Geofence, 0, len(intersects))
 
@@ -147,25 +150,24 @@ func (m *MemoryGeoCache) FindGeofenceByPoint(point orb.Point, userID *uint64, wi
 					gz.Distance = orbgeo.Distance(polygon[0][index], point)
 				}
 				geofences = append(geofences, *gz)
-
 			}
 		}
 	}
 
 	return geofences, nil
 }
-func (m *MemoryGeoCache) CheckGeofenceByPoint(point orb.Point, geofenceId []uint64) ([]models.Geofence, error) {
+func (m *MemoryGeoCache) CheckGeofenceByPoint(point orb.Point, geofenceID []uint64) ([]models.Geofence, error) {
+	defaultCap := 2
+	geofences := make([]models.Geofence, 0, defaultCap)
 
-	geofences := make([]models.Geofence, 0, 2)
-	for i := 0; i < len(geofenceId); i++ {
-
-		polygonsId := m.geofenceLinkedToPolygon[geofenceId[i]]
+	for i := 0; i < len(geofenceID); i++ {
+		polygonsID := m.geofenceLinkedToPolygon[geofenceID[i]]
 		var gzExt *models.GeofenceExt
 		var ok bool
-		for i := 0; i < len(polygonsId); i++ {
 
+		for i := 0; i < len(polygonsID); i++ {
 			// делаем поиск расширенного описания геозоны по id полигона, который её описывает
-			if gzExt, ok = m.geofenceExtCache[polygonsId[i]]; !ok {
+			if gzExt, ok = m.geofenceExtCache[polygonsID[i]]; !ok {
 				continue
 			}
 
@@ -183,6 +185,7 @@ func (m *MemoryGeoCache) CheckGeofenceByPoint(point orb.Point, geofenceId []uint
 			}
 		}
 	}
+
 	return geofences, nil
 }
 
@@ -191,12 +194,11 @@ func (m *MemoryGeoCache) GetDistanceToGeofence(point orb.Point) ([]models.Geofen
 }
 
 func (m *MemoryGeoCache) PolygonContainsGeo(polygon orb.Polygon, point orb.Point) bool {
-
 	p := gogeo.NewPoint(point.Lat(), point.Lon())
 
 	v := polygon[0]
-
 	points := make([]*gogeo.Point, 0, len(v))
+
 	for i := 0; i < len(v); i++ {
 		points = append(points, gogeo.NewPoint(v[i].Lat(), v[i].Lon()))
 	}

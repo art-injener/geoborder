@@ -3,24 +3,25 @@ package geofence
 import (
 	"context"
 	"fmt"
+	"log"
+	"net"
+	"os"
+	"testing"
+
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+
 	"github.com/X-Keeper/geoborder/internal/config"
 	"github.com/X-Keeper/geoborder/internal/storage/geocache"
 	"github.com/X-Keeper/geoborder/internal/storage/postgres"
 	gf "github.com/X-Keeper/geoborder/pkg/api/proto"
 	"github.com/X-Keeper/geoborder/pkg/logger"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/test/bufconn"
-	"log"
-	"net"
-	"os"
-	"testing"
 )
 
-var cache *geocache.MemoryGeoCache
+var cache *geocache.MemoryGeoCache //nolint:gochecknoglobals // используется только для тестов
 
-func init() {
+func init() { //nolint:gochecknoinits // инициализация тестового окружения
 	// читаем конфигурационные настройки
 	cfg, err := config.LoadConfig("../../configs")
 	if err != nil {
@@ -46,7 +47,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	cache, err = geocache.NewMemoryCache(geoDB)
+	cache, err = geocache.NewMemoryCache(geoDB, cfg.Log)
 
 	if err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error create geocache"), cfg.Log)
@@ -78,14 +79,15 @@ func dialer() func(context.Context, string) (net.Conn, error) {
 	}
 }
 
-// Тест интеграционный, нужен дамп геозон
+// Тест интеграционный, нужен дамп геозон.
+//nolint:funlen // тест
 func TestGeoborderServer_GetGeofencesByUserId(t *testing.T) {
 	tests := []struct {
 		name    string
 		req     *gf.UserPoints
 		res     *gf.Geofences
 		errCode gf.Status
-		errMsg  string
+		wantErr error
 	}{
 		{
 			"valid request",
@@ -100,9 +102,14 @@ func TestGeoborderServer_GetGeofencesByUserId(t *testing.T) {
 					},
 				},
 			},
-			nil,
+			&gf.Geofences{
+				UserId: 1,
+				Geofence: []*gf.Geofence{
+					{PointId: 1},
+				},
+			},
 			gf.Status_OK,
-			fmt.Sprintf("cannot deposit %v", -1.11),
+			nil,
 		},
 	}
 
@@ -116,9 +123,9 @@ func TestGeoborderServer_GetGeofencesByUserId(t *testing.T) {
 
 	client := gf.NewGeofenceServiceClient(conn)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
 
+	for _, tt := range tests { //nolint:dupl // тесты
+		t.Run(tt.name, func(t *testing.T) {
 			response, err := client.GetGeofencesByUserId(ctx, tt.req)
 
 			if response != nil {
@@ -127,27 +134,37 @@ func TestGeoborderServer_GetGeofencesByUserId(t *testing.T) {
 				}
 			}
 
+			if response.Geofence == nil {
+				t.Error("empty response")
+			}
+
 			if err != nil {
-				if er, ok := status.FromError(err); ok {
-					//if er.Code() != tt.errCode {
-					//	t.Error("error code: expected", codes.InvalidArgument, "received", er.Code())
-					//}
-					if er.Message() != tt.errMsg {
-						t.Error("error message: expected", tt.errMsg, "received", er.Message())
-					}
+				if !errors.Is(err, tt.wantErr) {
+					t.Error("error message: expected", tt.wantErr, "received", err)
+				}
+			}
+
+			for i := 0; i < len(tt.req.Items); i++ {
+				if response.Geofence[i].PointId != tt.res.Geofence[i].PointId {
+					t.Errorf("GetDistanceToGeofence() got = %v, want %v", response, tt.res)
+				}
+
+				if response.Geofence[i].GeoInfo == nil {
+					t.Errorf("GetDistanceToGeofence()  empty GeoInfo")
 				}
 			}
 		})
 	}
 }
 
+//nolint:funlen // тест
 func TestGeoborderServer_CheckGeofenceByPoint(t *testing.T) {
 	tests := []struct {
 		name    string
 		req     *gf.PointWithGeofence
 		res     *gf.Geofences
 		errCode gf.Status
-		errMsg  string
+		wantErr error
 	}{
 		{
 			"valid request",
@@ -166,11 +183,100 @@ func TestGeoborderServer_CheckGeofenceByPoint(t *testing.T) {
 						Accuracy:  0,
 					},
 				},
-				GeofenceId:           []uint64{221,50},
+				GeofenceId: []uint64{221, 50},
 			},
-			nil,
+			&gf.Geofences{
+				UserId: 0,
+				Geofence: []*gf.Geofence{
+					{PointId: 1},
+					{PointId: 2},
+				},
+				Status: gf.Status_OK,
+			},
 			gf.Status_OK,
-			fmt.Sprintf("cannot deposit %v", -1.11),
+			nil,
+		},
+	}
+
+	ctx := context.Background()
+
+	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	client := gf.NewGeofenceServiceClient(conn)
+
+	for _, tt := range tests { //nolint:dupl // тест
+		t.Run(tt.name, func(t *testing.T) {
+			response, err := client.CheckGeofenceByPoint(ctx, tt.req)
+
+			if response != nil {
+				if response.GetStatus() != tt.errCode {
+					t.Error("response: expected", tt.res.GetStatus(), "received", response.GetStatus())
+				}
+			}
+
+			if response.Geofence == nil {
+				t.Error("empty response")
+			}
+
+			if err != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Error("error message: expected", tt.wantErr, "received", err)
+				}
+			}
+
+			for i := 0; i < len(tt.req.Points); i++ {
+				if response.Geofence[i].PointId != tt.res.Geofence[i].PointId {
+					t.Errorf("GetDistanceToGeofence() got = %v, want %v", response, tt.res)
+				}
+
+				if response.Geofence[i].GeoInfo == nil {
+					t.Errorf("GetDistanceToGeofence()  empty GeoInfo")
+				}
+			}
+		})
+	}
+}
+
+func TestGeoborderServer_GetDistanceToGeofence(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     *gf.Points
+		res     *gf.Geofences
+		errCode gf.Status
+		wantErr error
+	}{
+		{
+			"valid request",
+			&gf.Points{
+				Points: []*gf.Point{
+					{
+						PointId:   1,
+						Latitude:  47.23571,
+						Longitude: 39.70151,
+						Accuracy:  0,
+					},
+					{
+						PointId:   2,
+						Latitude:  55.558741,
+						Longitude: 37.378847,
+						Accuracy:  0,
+					},
+				},
+			},
+			&gf.Geofences{
+				UserId: 0,
+				Geofence: []*gf.Geofence{
+					{PointId: 1},
+					{PointId: 2},
+				},
+				Status: gf.Status_OK,
+			},
+			gf.Status_OK,
+			nil,
 		},
 	}
 
@@ -187,24 +293,28 @@ func TestGeoborderServer_CheckGeofenceByPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			response, err := client.CheckGeofenceByPoint(ctx, tt.req)
-
-			if response != nil {
-				if response.GetStatus() != tt.errCode {
-					t.Error("response: expected", tt.res.GetStatus(), "received", response.GetStatus())
-				}
-			}
+			got, err := client.GetDistanceToGeofence(ctx, tt.req)
 
 			if err != nil {
-				if er, ok := status.FromError(err); ok {
-					//if er.Code() != tt.errCode {
-					//	t.Error("error code: expected", codes.InvalidArgument, "received", er.Code())
-					//}
-					if er.Message() != tt.errMsg {
-						t.Error("error message: expected", tt.errMsg, "received", er.Message())
-					}
+				if !errors.Is(err, tt.wantErr) {
+					t.Error("error message: expected", tt.wantErr, "received", err)
 				}
 			}
+
+			if got.Geofence == nil {
+				t.Errorf("GetDistanceToGeofence()  empty response")
+			}
+
+			for i := 0; i < len(tt.req.Points); i++ {
+				if got.Geofence[i].PointId != tt.res.Geofence[i].PointId {
+					t.Errorf("GetDistanceToGeofence() got = %v, want %v", got, tt.res)
+				}
+
+				if got.Geofence[i].GeoInfo == nil {
+					t.Errorf("GetDistanceToGeofence()  empty GeoInfo")
+				}
+			}
+
 		})
 	}
 }

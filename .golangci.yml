@@ -124,8 +124,9 @@ linters:
     - unparam
     - unused
     - varcheck
-    - wsl
     - whitespace
+    - lll
+    - ifshort
 
 #  disable:
 #    - wsl

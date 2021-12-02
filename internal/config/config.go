@@ -39,7 +39,6 @@ type DBDevicesConfig struct {
 }
 
 func LoadConfig(path string) (*Config, error) {
-
 	viper.AddConfigPath(path)
 	viper.SetConfigName("app")
 	viper.SetConfigType("env")

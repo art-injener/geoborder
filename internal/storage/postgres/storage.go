@@ -17,7 +17,6 @@ type Storage struct {
 	log *logger.Logger
 }
 
-
 // Connect - подключение к БД.
 func (s *Storage) Connect(cfg *config.DBConfig) (bool, error) {
 	if s == nil || cfg == nil {

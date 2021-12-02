@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/X-Keeper/geoborder/internal/geofence"
-	"google.golang.org/grpc"
 	"net"
 	"os"
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 
 	"github.com/X-Keeper/geoborder/internal/config"
+	"github.com/X-Keeper/geoborder/internal/geofence"
 	"github.com/X-Keeper/geoborder/internal/storage/geocache"
 	"github.com/X-Keeper/geoborder/internal/storage/postgres"
 	gf "github.com/X-Keeper/geoborder/pkg/api/proto"
@@ -43,37 +43,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	memoryGeoCache, err := geocache.NewMemoryCache(geoDB,cfg.Log)
+	memoryGeoCache, err := geocache.NewMemoryCache(geoDB, cfg.Log)
 
 	if err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error create geocache"), cfg.Log)
 		os.Exit(1)
 	}
-	if _, err := memoryGeoCache.Load(); err != nil {
+	if _, err = memoryGeoCache.Load(); err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error load geocache"), cfg.Log)
 		os.Exit(1)
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	const defaultTimeout = 5
+	ticker := time.NewTicker(defaultTimeout * time.Second)
 	done := make(chan bool)
 
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				memoryGeoCache.Update()
-			}
-		}
-	}()
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d",cfg.GRPCConfig.Port))
+	dbUpdater(done, ticker, memoryGeoCache, cfg)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCConfig.Port))
 	if err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error listen tcp"), cfg.Log)
 		os.Exit(1)
 	}
 
-	logger.LogDebug(fmt.Sprintf("[MAIN]::Start listen  %s",listener.Addr()),cfg.Log)
+	logger.LogDebug(fmt.Sprintf("[MAIN]::Start listen  %s", listener.Addr()), cfg.Log)
 
 	server := grpc.NewServer()
 
@@ -89,4 +81,20 @@ func main() {
 	done <- true
 }
 
+func dbUpdater(done chan bool, ticker *time.Ticker, memoryGeoCache *geocache.MemoryGeoCache, cfg *config.Config) {
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				_, err := memoryGeoCache.Update()
+				if err != nil {
+					logger.LogError(errors.Wrap(err, "[MAIN] : error update cache"), cfg.Log)
 
+					return
+				}
+			}
+		}
+	}()
+}

@@ -2,9 +2,12 @@ package geofence
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/paulmach/orb"
+
 	"github.com/X-Keeper/geoborder/internal/storage"
 	gf "github.com/X-Keeper/geoborder/pkg/api/proto"
-	"github.com/paulmach/orb"
 )
 
 type GeoborderServer struct {
@@ -29,18 +32,20 @@ func (s *GeoborderServer) GetGeofencesByUserId(ctx context.Context, points *gf.U
 			&points.UserId,
 			points.WithDistance)
 
+		fmt.Println(err)
+		fmt.Println(geofences)
 		if err != nil {
 			return nil, err
 		}
 
 		geoInfo := make([]*gf.GeofenceInfo, 0, len(geofences))
 
-		for i := 0; i < len(geofences); i++ {
+		for j := 0; j < len(geofences); j++ {
 			geoInfo = append(geoInfo, &gf.GeofenceInfo{
-				GeofenceId: geofences[i].GeofenceID,
-				PolygonId:  geofences[i].PolygonID,
-				Title:      geofences[i].Title,
-				Distance:   geofences[i].Distance,
+				GeofenceId: geofences[j].GeofenceID,
+				PolygonId:  geofences[j].PolygonID,
+				Title:      geofences[j].Title,
+				Distance:   geofences[j].Distance,
 			})
 		}
 		grpcResponse = append(grpcResponse, &gf.Geofence{
@@ -48,6 +53,8 @@ func (s *GeoborderServer) GetGeofencesByUserId(ctx context.Context, points *gf.U
 			GeoInfo: geoInfo,
 		})
 	}
+
+	fmt.Println(grpcResponse)
 
 	return &gf.Geofences{
 		UserId:   points.UserId,
@@ -57,17 +64,35 @@ func (s *GeoborderServer) GetGeofencesByUserId(ctx context.Context, points *gf.U
 	}, nil
 }
 
-func (s *GeoborderServer) CheckGeofenceByPoint(ctx context.Context, request *gf.PointWithGeofence) (*gf.Geofences, error) {
+func (s *GeoborderServer) CheckGeofenceByPoint(_ context.Context, req *gf.PointWithGeofence) (*gf.Geofences, error) {
 	grpcResponse := make([]*gf.Geofence, 0, 1)
 
-	for i := 0; i < len(request.Points); i++ {
-
-		s.geoCache.CheckGeofenceByPoint(
+	for i := 0; i < len(req.Points); i++ {
+		geofences, err := s.geoCache.CheckGeofenceByPoint(
 			orb.Point{
-				request.Points[i].Longitude,
-				request.Points[i].Latitude},
-			request.GeofenceId,
+				req.Points[i].Longitude,
+				req.Points[i].Latitude},
+			req.GeofenceId,
 		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		geoInfo := make([]*gf.GeofenceInfo, 0, len(geofences))
+
+		for j := 0; j < len(geofences); j++ {
+			geoInfo = append(geoInfo, &gf.GeofenceInfo{
+				GeofenceId: geofences[j].GeofenceID,
+				PolygonId:  geofences[j].PolygonID,
+				Title:      geofences[j].Title,
+				Distance:   geofences[j].Distance,
+			})
+		}
+		grpcResponse = append(grpcResponse, &gf.Geofence{
+			PointId: req.Points[i].PointId,
+			GeoInfo: geoInfo,
+		})
 	}
 
 	return &gf.Geofences{
@@ -82,7 +107,24 @@ func (s *GeoborderServer) GetDistanceToGeofence(_ context.Context, request *gf.P
 	grpcResponse := make([]*gf.Geofence, 0, 1)
 
 	for i := 0; i < len(request.Points); i++ {
-		s.geoCache.GetDistanceToGeofence(orb.Point{request.Points[i].Longitude,	request.Points[i].Latitude})
+		geofence, err := s.geoCache.GetDistanceToGeofence(orb.Point{request.Points[i].Longitude, request.Points[i].Latitude})
+		if err != nil {
+			return nil, err
+		}
+		geoInfo := make([]*gf.GeofenceInfo, 0, len(geofence))
+
+		for j := 0; j < len(geofence); j++ {
+			geoInfo = append(geoInfo, &gf.GeofenceInfo{
+				GeofenceId: geofence[j].GeofenceID,
+				PolygonId:  geofence[j].PolygonID,
+				Title:      geofence[j].Title,
+				Distance:   geofence[j].Distance,
+			})
+		}
+		grpcResponse = append(grpcResponse, &gf.Geofence{
+			PointId: request.Points[i].PointId,
+			GeoInfo: geoInfo,
+		})
 	}
 
 	return &gf.Geofences{

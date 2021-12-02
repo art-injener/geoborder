@@ -2,24 +2,24 @@ package geocache
 
 import (
 	"fmt"
-	"github.com/X-Keeper/geoborder/internal/config"
-	"github.com/X-Keeper/geoborder/internal/storage/postgres"
-	"github.com/pkg/errors"
 	"os"
 	"testing"
 
-	"github.com/X-Keeper/geoborder/pkg/logger"
 	"github.com/paulmach/orb"
+	"github.com/pkg/errors"
+
+	"github.com/X-Keeper/geoborder/internal/config"
+	"github.com/X-Keeper/geoborder/internal/storage/postgres"
+	"github.com/X-Keeper/geoborder/pkg/logger"
 )
 
-var cache *MemoryGeoCache
+var cache *MemoryGeoCache // nolint:gochecknoglobals // тесты
 
-func init() {
-
+func init() { // nolint:gochecknoinits //тесты
 	// читаем конфигурационные настройки
 	cfg, err := config.LoadConfig("../../../configs")
 	if err != nil {
-		fmt.Println(err.Error())
+		_ = fmt.Errorf(err.Error())
 		os.Exit(1)
 	}
 
@@ -41,7 +41,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	cache, err = NewMemoryCache(geoDB)
+	cache, err = NewMemoryCache(geoDB, nil)
 
 	if err != nil {
 		logger.LogError(errors.Wrap(err, "[MAIN] : error create geocache"), cfg.Log)
@@ -54,9 +54,8 @@ func init() {
 }
 
 func TestMemoryGeoCache_FindGeoZoneByPont(t *testing.T) {
-
 	type args struct {
-		point orb.Point
+		point  orb.Point
 		userID uint64
 	}
 
@@ -68,15 +67,17 @@ func TestMemoryGeoCache_FindGeoZoneByPont(t *testing.T) {
 	}{
 		{
 			name: "RostovOnDone",
-			args:    args{orb.Point{39.70151, 47.23571},
+			args: args{orb.Point{39.70151, 47.23571},
 				22217},
 			want:    1,
 			wantErr: false,
 		},
 	}
-
+	t.Parallel()
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := cache.FindGeofenceByPoint(tt.args.point, &tt.args.userID, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FindGeofenceByPoint() error = %v, wantErr %v", err, tt.wantErr)
@@ -91,10 +92,9 @@ func TestMemoryGeoCache_FindGeoZoneByPont(t *testing.T) {
 }
 
 func TestMemoryGeoCache_CheckGeofenceByPoint(t *testing.T) {
-
 	type args struct {
 		point      orb.Point
-		geofenceId []uint64
+		geofenceID []uint64
 	}
 	tests := []struct {
 		name    string
@@ -103,22 +103,25 @@ func TestMemoryGeoCache_CheckGeofenceByPoint(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "check RostovOnDone",
-			args:    args{
+			name: "check RostovOnDone",
+			args: args{
 				point:      orb.Point{39.70151, 47.23571},
-				geofenceId: []uint64{50,221},
+				geofenceID: []uint64{50, 221},
 			},
 
 			want:    1,
 			wantErr: false,
 		},
 	}
+	t.Parallel()
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			
-			got, err := cache.CheckGeofenceByPoint(tt.args.point, tt.args.geofenceId)
+			t.Parallel()
+			got, err := cache.CheckGeofenceByPoint(tt.args.point, tt.args.geofenceID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CheckGeofenceByPoint() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if len(got) != tt.want {
@@ -130,7 +133,7 @@ func TestMemoryGeoCache_CheckGeofenceByPoint(t *testing.T) {
 
 func TestMemoryGeoCache_GetDistanceToGeofence(t *testing.T) {
 	type args struct {
-		point orb.Point
+		point  orb.Point
 		userID uint64
 	}
 
@@ -142,15 +145,19 @@ func TestMemoryGeoCache_GetDistanceToGeofence(t *testing.T) {
 	}{
 		{
 			name: "RostovOnDone",
-			args:    args{orb.Point{39.70151, 47.23571},
+			args: args{orb.Point{39.70151, 47.23571},
 				22217},
-			want:   9,
+			want:    9,
 			wantErr: false,
 		},
 	}
 
+	t.Parallel()
+
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := cache.GetDistanceToGeofence(tt.args.point)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FindGeofenceByPoint() error = %v, wantErr %v", err, tt.wantErr)

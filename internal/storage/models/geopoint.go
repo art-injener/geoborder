@@ -33,7 +33,6 @@ func (gp GeoPoint) Longitude() float64 {
 // Scan - метод сканирования. Подходит для pgx, pgxpool, pq
 // C ORM не проверялся.
 func (gp *GeoPoint) Scan(src interface{}) error {
-	N := 2
 	raw, ok := src.(string)
 
 	if !ok {
@@ -50,16 +49,18 @@ func (gp *GeoPoint) Scan(src interface{}) error {
 	coords := raw[start+1 : end]
 	values := strings.Split(coords, " ")
 
-	if len(values) < N {
+	// nolint:gomnd // нужно только 2 значения
+	if len(values) < 2 {
 		return errors.New("Too few values")
 	}
 
 	var err error
-
+	// nolint:gomnd // 64 бита флоат
 	if gp.Lat, err = strconv.ParseFloat(values[1], 64); err != nil {
 		return errors.Wrap(err, "err when parse latitude")
 	}
 
+	// nolint:gomnd // 64 бита флоат
 	if gp.Lon, err = strconv.ParseFloat(values[0], 64); err != nil {
 		return errors.Wrap(err, "err when parse longitude")
 	}

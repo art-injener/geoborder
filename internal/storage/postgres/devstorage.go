@@ -28,7 +28,8 @@ func NewDevStorage(cfg *config.Config) *DevStorage {
 }
 
 func (s *DevStorage) GetGeoPoints() ([]orb.Point, error) {
-	rows, err := s.db.Query(context.Background(), "select st_asewkt(geo::geometry) from data_processed dp where geo IS NOT NULL;")
+	rows, err := s.db.Query(context.Background(),
+		"select st_asewkt(geo::geometry) from data_processed dp where geo IS NOT NULL;")
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return nil, errors.Wrap(err, "QueryRow failed")
@@ -45,7 +46,6 @@ func (s *DevStorage) GetGeoPoints() ([]orb.Point, error) {
 	for rows.Next() {
 		gp := models.GeoPoint{}
 		err := rows.Scan(&gp)
-
 		if err != nil {
 			logger.LogError(err, s.log)
 
