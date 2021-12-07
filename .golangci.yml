@@ -139,7 +139,7 @@ linters:
 
 issues:
   exclude-rules:
-    - path: integration-test
+    - path: tests
       linters:
         - paralleltest
         - godot

@@ -16,6 +16,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.26.0
 	github.com/spf13/viper v1.9.0
+	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/ziutek/mymysql v1.5.4 // indirect
 	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7 // indirect
 	google.golang.org/grpc v1.40.0

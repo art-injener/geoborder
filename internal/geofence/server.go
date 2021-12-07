@@ -2,7 +2,6 @@ package geofence
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/paulmach/orb"
 
@@ -32,8 +31,6 @@ func (s *GeoborderServer) GetGeofencesByUserId(ctx context.Context, points *gf.U
 			&points.UserId,
 			points.WithDistance)
 
-		fmt.Println(err)
-		fmt.Println(geofences)
 		if err != nil {
 			return nil, err
 		}
@@ -53,8 +50,6 @@ func (s *GeoborderServer) GetGeofencesByUserId(ctx context.Context, points *gf.U
 			GeoInfo: geoInfo,
 		})
 	}
-
-	fmt.Println(grpcResponse)
 
 	return &gf.Geofences{
 		UserId:   points.UserId,
@@ -103,6 +98,8 @@ func (s *GeoborderServer) CheckGeofenceByPoint(_ context.Context, req *gf.PointW
 	}, nil
 }
 
+// GetDistanceToGeofence - запрос дистанции до границы геозоны. Рассчитывается для каждого полигона из геозоны, в
+// который попадает геоточка.
 func (s *GeoborderServer) GetDistanceToGeofence(_ context.Context, request *gf.Points) (*gf.Geofences, error) {
 	grpcResponse := make([]*gf.Geofence, 0, 1)
 
