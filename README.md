@@ -1,4 +1,4 @@
-## Сервис Geoborder X-Keeper
+## Сервис Geoborder
   Поиск вхождения точек в геозоны, расчет дистанции до границы геозоны
 
     ### Сборка docker образа
@@ -12,9 +12,9 @@
 
     DEVICES_DB_HOST=devices
     DEVICES_DB_PORT=5432
-    DEVICES_DB_USERNAME=x-keeper
+    DEVICES_DB_USERNAME=user
     DEVICES_DB_PASSWORD=1234567
-    DEVICES_DB_DATABASE=x-keeper_devices
+    DEVICES_DB_DATABASE=devices
     
     
     GRPS_PORT = 6589 - порт для запуска сервера gRPC 
